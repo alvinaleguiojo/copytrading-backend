@@ -20,5 +20,13 @@ export const accounts = [
         host: '3.1.178.15',
         port: '443',
         auth: '0d228653-4738-4807-a635-c2546046dfa3'
-    }
+    },
+    {   
+        name: 'Alvs Real',
+        accNumber: 104575289,
+        password: "secret",
+        host: '13.251.254.3',
+        port: '443',
+        auth: 'cc1279d0-190f-4116-a183-95fb29976925'
+    },
 ];
