@@ -66,7 +66,7 @@ async function getOpenOrders(params) {
                 if (response.status === 200) {
                     // Extract ticket numbers for each account and filter by symbol
                     const orders = response.data.filter(order => order.symbol === symbol).map(order => {
-                        return { ticket: order.ticket, symbol: order.symbol };
+                        return { ticket: order.ticket, symbol: order.symbol, takeProfit: order.takeProfit, stopLoss: order.stopLoss };
                     });
 
                     return { auth: account.auth, accNumber: account.accNumber, orders };  // Return account number and its tickets
@@ -132,6 +132,46 @@ app.get("/close", async (req, res) => {
         res.status(500).json({ message: "Error closing orders", error: error.message });
     }
 });
+
+app.get("/ordermodify", async (req, res)=>{
+    const { stopLoss, takeProfit, symbol } = req.query;
+    console.log(stopLoss, takeProfit, symbol)
+    try {
+        const accountsTickets = await getOpenOrders(req.query);
+
+        if (!accountsTickets || accountsTickets.length === 0) {
+            return res.status(404).json({ message: "No open orders found to close." });
+        }
+
+        // Now, loop through each account and close its orders
+        const closeResults = await Promise.all(accountsTickets.map(async (account) => {
+            const closeOrderPromises = account.orders.map(async (order) => {
+                try {
+
+                    const response = await axios.get(`https://mt5.mtapi.io/OrderModify?id=${account.auth}&ticket=${order.ticket}&stoploss=${stopLoss}&takeprofit=${takeProfit}&expirationType=Specified`);
+
+                    if (response.status === 200) {
+                        return { ticket: order.ticket, status: 'Closed' };
+                    } else {
+                        return { ticket: order.ticket, status: 'Failed to close', error: response.data };
+                    }
+                } catch (error) {
+                    return { ticket: order.ticket, status: 'Failed to close', error: error.message };
+                }
+            });
+
+            // Wait for all orders to be closed for this account
+            const closeOrderStatus = await Promise.all(closeOrderPromises);
+            return { accNumber: account.accNumber, closeOrderStatus };
+        }));
+
+        // Send back results
+        res.json({ closeResults });
+    } catch (error) {
+        console.error('Error during the close process:', error.message);
+        res.status(500).json({ message: "Error closing orders", error: error.message });
+    }
+})
 
 app.listen(3001, () => {
     console.log(`Server listening at http://localhost:3001 🚀🚀🚀`);
