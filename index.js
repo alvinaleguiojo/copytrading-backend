@@ -6,6 +6,8 @@ import cors from 'cors'
 const app = express();
 app.use(cors());
 
+let signedUsers = accounts
+
 // const symbol = "GBPUSDm";
 // const operation = "Buy";
 const lotsize = 0.04;
@@ -14,12 +16,51 @@ app.get("/", (req, res) => {
     res.send("welcome")
 })
 
+app.get("/connect", async (req, res)=>{
+
+    try {
+        const results = await Promise.all(
+            signedUsers.map(async (account) => {
+                try {
+                    const response = await axios.get("https://mt5.mtapi.io/Connect", {
+                        params: {
+                            user : account.accNumber,
+                            password : account.password,
+                            host : account.host,
+                            port : account.port,
+                        }
+                    });
+                    
+                    signedUsers.push({...account, auth: response.data})
+                    return {
+                        accNumber: account.accNumber,
+                        status: "Order filled",
+                        data: response.data
+                    };
+                } catch (error) {
+                    return {
+                        accNumber: account.accNumber,
+                        status: "Failed to process order",
+                        error: error.message
+                    };
+                }
+            })
+        );
+
+        // Return all results for each account
+        res.json(results);
+    } catch (error) {
+        console.error("Error processing orders:", error);
+        res.status(500).json({ error: "Failed to process orders" });
+    }
+})
+
 // Endpoint to process orders for multiple accounts
 app.get("/open", async (req, res) => {
     const { symbol, operation } = req.query
     try {
         const results = await Promise.all(
-            accounts.map(async (account) => {
+            signedUsers.map(async (account) => {
                 try {
                     const response = await axios.get("https://mt5.mtapi.io/OrderSend", {
                         params: {
@@ -60,7 +101,7 @@ async function getOpenOrders(params) {
 
     try {
         // Fetch orders for each account
-        const ordersPromises = accounts.map(async (account) => {
+        const ordersPromises = signedUsers.map(async (account) => {
             try {
                 const response = await axios.get(`https://mt5.mtapi.io/OpenedOrders?id=${account.auth}&sort=OpenTime&ascending=true`);
 
