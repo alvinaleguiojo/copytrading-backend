@@ -8,52 +8,54 @@ app.use(cors());
 
 let signedUsers = accounts
 
-// const symbol = "GBPUSDm";
-// const operation = "Buy";
 const lotsize = 0.04;
 
 app.get("/", (req, res) => {
     res.send("welcome")
 })
-
-app.get("/connect", async (req, res)=>{
-
+app.get("/connect", async (req, res) => {
     try {
         const results = await Promise.all(
             signedUsers.map(async (account) => {
                 try {
+                    // Fetch authentication token from the API
                     const response = await axios.get("https://mt5.mtapi.io/Connect", {
                         params: {
-                            user : account.accNumber,
-                            password : account.password,
-                            host : account.host,
-                            port : account.port,
-                        }
+                            user: account.accNumber,
+                            password: account.password,
+                            host: account.host,
+                            port: account.port,
+                        },
                     });
-                    
-                    signedUsers.push({...account, auth: response.data})
+
+                    // Update the auth field in the signedUsers array
+                    account.auth = response.data;
+
                     return {
                         accNumber: account.accNumber,
-                        status: "Order filled",
-                        data: response.data
+                        status: "Connected successfully",
+                        auth: response.data,
                     };
                 } catch (error) {
                     return {
                         accNumber: account.accNumber,
-                        status: "Failed to process order",
-                        error: error.message
+                        status: "Connection failed",
+                        error: error.message,
                     };
                 }
             })
         );
 
-        // Return all results for each account
-        res.json(results);
+        res.json(results); // Send response with updated status and auth tokens
     } catch (error) {
-        console.error("Error processing orders:", error);
-        res.status(500).json({ error: "Failed to process orders" });
+        console.error("Error connecting accounts:", error.message);
+        res.status(500).json({ error: "Failed to connect accounts" });
     }
-})
+});
+
+app.get("/signed-users", (req, res) => {
+    res.json(signedUsers);
+});
 
 // Endpoint to process orders for multiple accounts
 app.get("/open", async (req, res) => {
